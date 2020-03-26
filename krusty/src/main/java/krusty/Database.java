@@ -16,18 +16,18 @@ public class Database {
 	 * Modify it to fit your environment and then use this string when connecting to
 	 * your database!
 	 */
-	private static final String jdbcString = "jdbc:sqlite:C:/Users/André/Desktop/edaf20projectDB/krusty.db";
+	private static final String jdbcString = "jdbc:sqlite://C:/Users/André/Desktop/edaf20projectDB/krusty.db";
 
 	// For use with MySQL or PostgreSQL
-	private static final String jdbcUsername = "root";
-	private static final String jdbcPassword = "root";
+	private static final String jdbcUsername = "localhost";
+	private static final String jdbcPassword = "localhost";
 	private Connection conn;
 
 	public void connect() {
 		// Connect to database here
 		try {
 			//Class.forName("com.mysql.cj.jdbc.Driver");
-			conn = DriverManager.getConnection(jdbcString, jdbcUsername, jdbcPassword);
+			conn = DriverManager.getConnection(jdbcString);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
