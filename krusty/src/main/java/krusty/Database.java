@@ -16,7 +16,7 @@ public class Database {
 	 * Modify it to fit your environment and then use this string when connecting to
 	 * your database!
 	 */
-	private static final String jdbcString = "jdbc:sqlite:C:/Users/André/Desktop/edaf20projectDB/krusty";
+	private static final String jdbcString = "jdbc:sqlite:C:/Users/André/Desktop/edaf20projectDB/krusty.db";
 
 	// For use with MySQL or PostgreSQL
 	private static final String jdbcUsername = "root";
