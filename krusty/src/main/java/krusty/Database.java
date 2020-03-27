@@ -40,7 +40,7 @@ public class Database {
 	public void connect() {
 		// Connect to database here
 		try {
-			// Class.forName("com.mysql.cj.jdbc.Driver");
+
 			conn = DriverManager.getConnection(jdbcString);
 			System.out.println(conn);
 		} catch (Exception e) {
@@ -125,69 +125,73 @@ public class Database {
 	}
 
 	public String getPallets(Request req, Response res) {
-		
+
 		String json = "";
-		String sql = "SELECT palletId AS id, cookieName AS cookie, producedAt AS production_date, location AS customer, isBlocked AS blocked "
-				+ "FROM Pallet "
-				+ "WHERE ";
-		
+		String sql = "SELECT palletId AS id, cookieName AS cookie, producedAt AS production_date, location AS customer, isBlocked AS blocked " // Gets
+																																				// pallets
+				+ "FROM Pallet ";
+
 		String from = req.queryParams("from");
 		String to = req.queryParams("to");
 		String cookie = req.queryParams("cookie");
 		String blocked = req.queryParams("blocked");
-		
+
 		ArrayList<String> values = new ArrayList<String>();
-		
-		if(from != null) {
+
+		if (from != null || to != null || cookie != null || blocked != null) { // Adds filters and a WHERE clause
+			sql += "WHERE ";
+		}
+
+		if (from != null) {
 			sql += "production_date >= ? ";
 			values.add(from);
 		}
-		
-		if(to != null) {
-			if(values.size() > 0 )
-			sql += "AND ";
-			else {
-				sql += "production_date <= ? ";
-			}
+
+		if (to != null) {
+			if (values.size() > 0)
+				sql += "AND ";
+
+			sql += "production_date <= ? ";
+
 			values.add(to);
 		}
-		
-		if(cookie != null) {			
-			if(values.size() > 0 )
+
+		if (cookie != null) {
+			if (values.size() > 0)
 				sql += "AND ";
-				else {
-					sql += "cookie = ? ";
-				}
-				values.add(cookie);
-			
+
+			sql += "cookie = ? ";
+
+			values.add(cookie);
+
 		}
 
 		if (blocked != null) {
 			if (values.size() > 0)
 				sql += "AND ";
-			else
-				sql += "blocked = ? ";
 
-			if (blocked.equals("yes"))
-				values.add("1");
-			else
-				values.add("0");
+			sql += "blocked = ? ";
+
+			values.add(blocked);
 		}
-		
+
 		try {
-			PreparedStatement stmt = conn.prepareStatement(sql);
-			for (int i = 0; i < values.size(); i++) {
-				
-				stmt.setString(i+1, values.get(i));				
+
+			System.out.println(sql);
+
+			PreparedStatement ps = conn.prepareStatement(sql);
+			for (int i = 0; i < values.size(); i++) { // Add values to the "?"
+
+				ps.setString(i + 1, values.get(i));
 			}
-			
+			ResultSet rs = ps.executeQuery();
+
+			json = Jsonizer.toJson(rs, "pallets");
+
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		
-		
-		
-		
+
 		return json;
 	}
 
@@ -202,14 +206,13 @@ public class Database {
 
 			BufferedReader reader = new BufferedReader(new InputStreamReader(resourceAsStream, StandardCharsets.UTF_8));
 			String sql = "";
-					
-			for(String line = reader.readLine(); line != null; line=reader.readLine()) {
-				if(!"".equals(line.trim()))
-					sql+= line + " ";
+
+			for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+				if (!"".equals(line.trim()))
+					sql += line + " ";
 			}
-			
-			for(String statement : sql.split(";")) { //Dela upp i SQL frågor
-				System.out.println("*" + statement);
+
+			for (String statement : sql.split(";")) { // Dela upp så varje rad är en SQL fråga
 				stmt.addBatch(statement);
 			}
 
@@ -234,24 +237,19 @@ public class Database {
 
 			try {
 
-				String sql = "INSERT INTO Pallet (producedAt, isBlocked, cookieName) VALUES(?, ?, ?)"; // Create pallet
+				String sql = "INSERT INTO Pallet (producedAt, cookieName) VALUES(?, ?)"; // Create pallet
 				PreparedStatement ps = conn.prepareStatement(sql);
 				ps.setString(1, creationTime);
-				ps.setBoolean(2, false);
-				ps.setString(3, cookieName);
+				ps.setString(2, cookieName);
+
 				ps.executeUpdate();
+				ResultSet rs = ps.getGeneratedKeys();
+				if (rs.next()) {
+					palletId = rs.getInt(1);
+				}
 				ps.close();
 
 				subtractIngredients(cookieName);
-
-				sql = "SELECT MAX(palletId) as palletId from Pallet"; //Find biggest palletId, biggestId = newest Pallet
-				ps = conn.prepareStatement(sql);
-				ResultSet rs = ps.executeQuery();
-
-				if (rs.next()) {
-					palletId = rs.getInt("palletId");
-				}
-				ps.close();
 
 			} catch (SQLException e) {
 
@@ -282,7 +280,6 @@ public class Database {
 				return true;
 			}
 			ps.close();
-			
 
 		} catch (SQLException e) {
 
@@ -298,7 +295,7 @@ public class Database {
 		HashMap<String, Integer> ingredients = new HashMap<String, Integer>();
 
 		try {
-			conn.setAutoCommit(false); //Transaction
+			conn.setAutoCommit(false); // Transaction
 
 			// Find how much we have of each ingredient used in this cookie
 			String sql = "SELECT StoredIngredients.ingredient, amountInStorage\n" + "FROM StoredIngredients\n"
@@ -309,30 +306,32 @@ public class Database {
 			ResultSet rs = ps.executeQuery();
 
 			while (rs.next()) {
-				String ingredient = rs.getString("ingredient"); // add ingredient and total in storage into map															
+				String ingredient = rs.getString("ingredient"); // add ingredient and total in storage into map
 				int amount = rs.getInt("amountInStorage");
-				ingredients.put(ingredient, amount); //Map with total amount of each ingredient
+				ingredients.put(ingredient, amount); // Map with total amount of each ingredient
 			}
 			ps.close();
 
-			sql = "SELECT ingredient, amount FROM IngredientAmount WHERE cookieName = ?"; // find ingredients and amounts
+			sql = "SELECT ingredient, amount FROM IngredientAmount WHERE cookieName = ?"; // find ingredients and
+																							// amounts
 			ps = conn.prepareStatement(sql);
 			ps.setString(1, cookieName);
 			rs = ps.executeQuery();
 
 			while (rs.next()) {
-				
-				String ingredient = rs.getString("ingredient");														
+
+				String ingredient = rs.getString("ingredient");
 				int amount = rs.getInt("amount");
-				
-				int newAmount = ingredients.get(ingredient) - amount*54; //Subtract total with the amount used to produce cookies
-				ingredients.put(ingredient, newAmount); //Put in new total amount
+
+				int newAmount = ingredients.get(ingredient) - amount * 54; // Subtract total with the amount used to
+																			// produce cookies
+				ingredients.put(ingredient, newAmount); // Put in new total amount
 			}
 			ps.close();
-			
-			for (Map.Entry<String, Integer> entry : ingredients.entrySet()) { //Update each ingredient
 
-				sql = "UPDATE StoredIngredients SET amountInStorage = ? WHERE ingredient = ?"; 
+			for (Map.Entry<String, Integer> entry : ingredients.entrySet()) { // Update each ingredient
+
+				sql = "UPDATE StoredIngredients SET amountInStorage = ? WHERE ingredient = ?";
 				ps = conn.prepareStatement(sql);
 				ps.setInt(1, entry.getValue());
 				ps.setString(2, entry.getKey());
@@ -340,7 +339,7 @@ public class Database {
 				ps.close();
 
 			}
-			
+
 			conn.commit();
 
 		} catch (SQLException e) {
@@ -352,7 +351,7 @@ public class Database {
 			}
 			e.printStackTrace();
 		}
-		
+
 		try {
 			conn.setAutoCommit(true);
 		} catch (SQLException e) {
